@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { Complaint, UserProfile } from '../types/index.ts';
 import { supabase, isSupabaseConfigured } from '../lib/supabase.ts';
+import { BAUSTComplaintStatsChart } from '../components/BAUSTComplaintStatsChart.tsx';
 
 interface BAUSTStudentPortalProps {
   currentUser: UserProfile;
@@ -337,6 +338,8 @@ export const BAUSTStudentPortal: React.FC<BAUSTStudentPortalProps> = ({
           ))
         )}
       </div>
+
+      <BAUSTComplaintStatsChart refreshTrigger={refreshTrigger} />
     </div>
   );
 };

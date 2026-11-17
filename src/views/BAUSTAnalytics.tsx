@@ -12,10 +12,9 @@ import {
   Legend,
   Cell,
 } from 'recharts';
-import { Download, Clock, ShieldCheck } from 'lucide-react';
+import { Clock, ShieldCheck } from 'lucide-react';
 import { BAUSTAnalytics, BAUSTDepartment, Complaint, UserProfile } from '../types/index.ts';
 import { supabase, isSupabaseConfigured } from '../lib/supabase.ts';
-import { exportComplaintsToCSV } from '../lib/departments.ts';
 
 const DEPT_COLORS = [
   '#059669', '#0284c7', '#d97706', '#dc2626', '#7c3aed',
@@ -261,16 +260,6 @@ export const BAUSTAnalyticsView: React.FC<BAUSTAnalyticsViewProps> = ({
           </div>
           <p className="text-xs text-slate-500 mt-1">{scopeSubtitle}</p>
         </div>
-
-        <button
-          type="button"
-          onClick={() => exportComplaintsToCSV(rawComplaints, 'baust_analytics_complaints.csv')}
-          disabled={rawComplaints.length === 0}
-          className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white text-slate-700 hover:bg-slate-50 border border-slate-300 text-xs font-semibold rounded-lg shadow-xs transition-colors self-start sm:self-auto disabled:opacity-50"
-        >
-          <Download className="w-3.5 h-3.5" />
-          <span>Export Dataset (CSV)</span>
-        </button>
       </div>
 
       {/* KPI Cards */}

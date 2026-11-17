@@ -277,6 +277,35 @@ export async function ensureAuthenticatedProfile(
     profileRow = inserted;
   }
 
+  // Auto-link department UUID if an existing profile has department_id = NULL (e.g. signed up before departments were seeded)
+  if (!isValidUuid(profileRow.department_id) && profileRow.role !== 'super_admin') {
+    const meta = (authUser.user_metadata || {}) as Record<string, any>;
+    const rawMetaDeptId = typeof meta.department_id === 'string' ? meta.department_id : '';
+    const empIdStr = String(profileRow.student_or_emp_id || meta.student_or_emp_id || '');
+    const facCodeMatch = empIdStr.toUpperCase().startsWith('FAC-')
+      ? empIdStr.split('-')[1] || ''
+      : '';
+    const deptHint =
+      (isValidUuid(rawMetaDeptId) ? rawMetaDeptId : '') ||
+      (typeof meta.department_code === 'string' && meta.department_code.trim()) ||
+      facCodeMatch ||
+      rawMetaDeptId;
+
+    if (deptHint) {
+      const healedDeptId = await resolveDepartmentUuid(deptHint);
+      if (healedDeptId) {
+        const { error: healError } = await supabase
+          .from('profiles')
+          .update({ department_id: healedDeptId })
+          .eq('id', authUser.id);
+
+        if (!healError) {
+          profileRow = { ...profileRow, department_id: healedDeptId };
+        }
+      }
+    }
+  }
+
   const dept = await hydrateDepartmentFields(profileRow.department_id);
 
   return {

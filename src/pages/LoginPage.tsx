@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ShieldCheck, Search } from 'lucide-react';
 import { BAUSTDepartment, UserProfile } from '../types/index.ts';
 import { BAUSTAuthModal } from '../components/BAUSTAuthModal.tsx';
+import { BAUSTComplaintStatsChart } from '../components/BAUSTComplaintStatsChart.tsx';
 
 interface LoginPageProps {
   departments: BAUSTDepartment[];
@@ -18,7 +19,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ departments, onAuthSuccess
     <div className="min-h-[75vh] flex flex-col items-center justify-center py-4 sm:py-8 px-1 sm:px-4">
       <div className="w-full max-w-xl space-y-4 sm:space-y-5">
         <div className="text-center space-y-1.5">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-semibold border border-emerald-200">
+          <div className="inline-flex items-center gap-1.5 text-emerald-800 text-[11px] font-semibold uppercase tracking-wider">
             <ShieldCheck className="w-3.5 h-3.5" />
             <span>Authenticated Session Required</span>
           </div>
@@ -50,6 +51,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({ departments, onAuthSuccess
             <span>Track an existing grievance by Tracking ID</span>
           </Link>
         </div>
+      </div>
+
+      <div className="w-full max-w-4xl mt-8 sm:mt-10">
+        <BAUSTComplaintStatsChart />
       </div>
     </div>
   );

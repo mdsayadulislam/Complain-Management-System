@@ -1,11 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Download,
   AlertTriangle,
   Shield,
   Search,
   RefreshCw,
-  Lock,
   ArrowRightLeft,
   Inbox,
   SendHorizontal,
@@ -13,8 +11,8 @@ import {
 } from 'lucide-react';
 import { Complaint, UserProfile, BAUSTDepartment } from '../types/index.ts';
 import { supabase, isSupabaseConfigured, isValidUuid } from '../lib/supabase.ts';
-import { exportComplaintsToCSV } from '../lib/departments.ts';
 import { CategoryManagerModal } from '../components/CategoryManagerModal.tsx';
+import { BAUSTComplaintStatsChart } from '../components/BAUSTComplaintStatsChart.tsx';
 
 interface BAUSTDepartmentTriageProps {
   currentUser: UserProfile;
@@ -132,13 +130,6 @@ export const BAUSTDepartmentTriage: React.FC<BAUSTDepartmentTriageProps> = ({
     }
   };
 
-  const handleExportCSV = () => {
-    exportComplaintsToCSV(
-      filtered,
-      `baust_${(currentUser.department_code || 'all').toLowerCase()}_complaints.csv`
-    );
-  };
-
   const baseList =
     queueTab === 'forwarded_out'
       ? forwardedOutComplaints
@@ -206,42 +197,6 @@ export const BAUSTDepartmentTriage: React.FC<BAUSTDepartmentTriageProps> = ({
             <RefreshCw className="w-3.5 h-3.5" />
             <span>Refresh</span>
           </button>
-          <button
-            type="button"
-            onClick={handleExportCSV}
-            disabled={filtered.length === 0}
-            className="px-3.5 py-2 bg-white text-slate-700 hover:bg-slate-50 border border-slate-300 text-xs font-semibold rounded-lg shadow-xs transition-colors flex items-center gap-1.5 disabled:opacity-50"
-          >
-            <Download className="w-3.5 h-3.5" />
-            <span>Export CSV</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Strict Routing Verification Badge */}
-      <div className="p-4 bg-slate-900 text-slate-200 rounded-xl border border-slate-800 text-xs flex items-start gap-3">
-        <Lock className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-        <div className="space-y-0.5">
-          <span className="font-bold text-white block">
-            Department-Level Routing & RLS Isolation Active
-          </span>
-          {currentUser.role === 'super_admin' ? (
-            <p className="text-slate-300">
-              You are authenticated as <strong>Super Administrator</strong>. Centralized monitoring access is granted to inspect complaints across all 14 BAUST departments and offices.
-            </p>
-          ) : isValidUuid(currentUser.department_id) ? (
-            <p className="text-slate-300">
-              You are authenticated as <strong>{currentUser.department_name || 'Department Authority'}</strong>. Supabase Row Level Security (RLS) isolates this queue strictly to grievances targeting{' '}
-              <code className="font-mono bg-slate-800 px-1 py-0.2 rounded text-emerald-300">
-                {currentUser.department_code || 'ASSIGNED_DEPT'}
-              </code>
-              .
-            </p>
-          ) : (
-            <p className="text-amber-300">
-              Your account is authenticated, but your Supabase <code className="font-mono">departments</code> table has not been seeded yet or your profile is awaiting department UUID linking. Run <code className="font-mono">supabase/migrations/20261120_seed_departments_and_policies.sql</code> in Supabase SQL Editor and refresh.
-            </p>
-          )}
         </div>
       </div>
 
@@ -531,6 +486,8 @@ export const BAUSTDepartmentTriage: React.FC<BAUSTDepartmentTriageProps> = ({
           </table>
         </div>
       </div>
+
+      <BAUSTComplaintStatsChart refreshTrigger={refreshTrigger} />
 
       {/* Dynamic Departmental Category Manager Modal (BUG 3) */}
       {canManageCategories && (
