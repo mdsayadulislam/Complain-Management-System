@@ -24,6 +24,8 @@ import {
   ensureAuthenticatedProfile,
   resolveDepartmentUuid,
 } from '../lib/supabase.ts';
+import { DemoLoginPanel } from './DemoLoginPanel.tsx';
+import { DemoAccount } from '../config/demoAccounts.ts';
 
 interface BAUSTAuthModalProps {
   isOpen: boolean;
@@ -54,6 +56,7 @@ export const BAUSTAuthModal: React.FC<BAUSTAuthModalProps> = ({
   // Login form state
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
+  const [autoFilledAccount, setAutoFilledAccount] = useState<string | null>(null);
 
   // Register form state
   const [fullName, setFullName] = useState('');
@@ -95,14 +98,13 @@ export const BAUSTAuthModal: React.FC<BAUSTAuthModalProps> = ({
 
   if (!isOpen && !isStandalonePage) return null;
 
-  const handleLoginSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const performLogin = async (emailToUse: string, passwordToUse: string) => {
     setError(null);
     setAnonDbTriggerError(false);
     setEmailNotConfirmedError(false);
     setInfoMessage(null);
 
-    if (!loginEmail.trim() || !loginPassword) {
+    if (!emailToUse.trim() || !passwordToUse) {
       setError('Please enter your institutional email and password.');
       return;
     }
@@ -116,10 +118,10 @@ export const BAUSTAuthModal: React.FC<BAUSTAuthModalProps> = ({
 
     setLoading(true);
     try {
-      const normalizedEmail = loginEmail.trim().toLowerCase();
+      const normalizedEmail = emailToUse.trim().toLowerCase();
       const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
         email: normalizedEmail,
-        password: loginPassword,
+        password: passwordToUse,
       });
 
       if (signInError) {
@@ -152,6 +154,18 @@ export const BAUSTAuthModal: React.FC<BAUSTAuthModalProps> = ({
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleLoginSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await performLogin(loginEmail, loginPassword);
+  };
+
+  const handleDemoAccountSelect = async (account: DemoAccount) => {
+    setAutoFilledAccount(account.id);
+    setLoginEmail(account.email);
+    setLoginPassword(account.password);
+    await performLogin(account.email, account.password);
   };
 
   const handleAnonymousLogin = async () => {
@@ -565,7 +579,7 @@ WHERE email_confirmed_at IS NULL${
       </div>
 
       {/* Body */}
-      <div className="p-4 sm:p-6 overflow-y-auto max-h-[75vh]">
+      <div className={`p-4 sm:p-6 ${isStandalonePage ? 'overflow-visible' : 'overflow-y-auto max-h-[75vh]'}`}>
         {!isSupabaseConfigured && (
           <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900">
             <strong>Configuration Required:</strong> Set <code>VITE_SUPABASE_URL</code> and{' '}
@@ -690,10 +704,17 @@ WHERE email_confirmed_at IS NULL${
                   type="email"
                   required
                   value={loginEmail}
-                  onChange={(e) => setLoginEmail(e.target.value)}
+                  onChange={(e) => {
+                    setLoginEmail(e.target.value);
+                    setAutoFilledAccount(null);
+                  }}
                   placeholder="name@baust.edu.bd"
                   autoComplete="email"
-                  className="w-full pl-9 pr-3 py-2 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                  className={`w-full pl-9 pr-3 py-2 text-xs border rounded-lg outline-none transition-all ${
+                    autoFilledAccount
+                      ? 'border-emerald-500 ring-2 ring-emerald-500/20 bg-emerald-50/20 text-slate-900 font-medium'
+                      : 'border-slate-300 text-slate-900 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500'
+                  }`}
                 />
               </div>
             </div>
@@ -708,10 +729,17 @@ WHERE email_confirmed_at IS NULL${
                   type="password"
                   required
                   value={loginPassword}
-                  onChange={(e) => setLoginPassword(e.target.value)}
+                  onChange={(e) => {
+                    setLoginPassword(e.target.value);
+                    setAutoFilledAccount(null);
+                  }}
                   placeholder="Enter your password"
                   autoComplete="current-password"
-                  className="w-full pl-9 pr-3 py-2 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                  className={`w-full pl-9 pr-3 py-2 text-xs border rounded-lg outline-none transition-all ${
+                    autoFilledAccount
+                      ? 'border-emerald-500 ring-2 ring-emerald-500/20 bg-emerald-50/20 text-slate-900 font-medium'
+                      : 'border-slate-300 text-slate-900 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500'
+                  }`}
                 />
               </div>
             </div>
@@ -755,6 +783,13 @@ WHERE email_confirmed_at IS NULL${
                 providing an email or password.
               </p>
             </div>
+
+            {/* Collapsible Demo Accounts Panel for evaluators */}
+            <DemoLoginPanel
+              onSelectAccount={(account) => void handleDemoAccountSelect(account)}
+              loading={loading}
+              selectedAccountEmail={loginEmail}
+            />
           </form>
         ) : (
           <form onSubmit={(e) => void handleRegisterSubmit(e)} className="space-y-4">
