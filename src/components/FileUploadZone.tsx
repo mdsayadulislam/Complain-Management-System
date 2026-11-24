@@ -35,6 +35,7 @@ interface FileUploadZoneProps {
   maxFiles?: number;
   maxSizeBytes?: number;
   disabled?: boolean;
+  isAnonymous?: boolean;
 }
 
 export const FileUploadZone: React.FC<FileUploadZoneProps> = ({
@@ -44,6 +45,7 @@ export const FileUploadZone: React.FC<FileUploadZoneProps> = ({
   maxFiles = MAX_FILES,
   maxSizeBytes = MAX_SIZE_BYTES,
   disabled = false,
+  isAnonymous = false,
 }) => {
   const [uploadingCount, setUploadingCount] = useState<number>(0);
   const [isDragging, setIsDragging] = useState<boolean>(false);
@@ -125,22 +127,47 @@ export const FileUploadZone: React.FC<FileUploadZoneProps> = ({
     setUploadingCount((prev) => prev + validFiles.length);
 
     try {
+      // Synchronize with active Supabase session to ensure upload path exactly matches auth.uid()
+      let activeUid: string | null = null;
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        activeUid = sessionData?.session?.user?.id || null;
+      } catch (sessionErr) {
+        console.warn('Could not read session user for storage upload:', sessionErr);
+      }
+
+      // If anonymous submission requested, use 'anonymous' or auth UID
+      // Otherwise strictly use active auth UID (or userId prop)
+      const folder = isAnonymous
+        ? (activeUid || 'anonymous')
+        : (activeUid || (userId && userId !== 'anonymous' ? userId : 'anonymous'));
+
       const uploadResults = await Promise.all(
         validFiles.map(async (file): Promise<UploadedAttachment | null> => {
           const sanitizedName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-          const storagePath = `${userId}/${Date.now()}-${Math.random()
+          const storagePath = `${folder}/${Date.now()}-${Math.random()
             .toString(36)
             .substring(2, 8)}-${sanitizedName}`;
 
           const { error: uploadError } = await supabase.storage
             .from('complaint-attachments')
             .upload(storagePath, file, {
-              contentType: file.type,
+              contentType: file.type || 'application/octet-stream',
               upsert: false,
             });
 
           if (uploadError) {
-            pushErrorToast(`Upload failed for "${file.name}": ${uploadError.message}`);
+            const isRlsError =
+              uploadError.message.toLowerCase().includes('row-level security') ||
+              uploadError.message.toLowerCase().includes('rls') ||
+              (uploadError as any).statusCode === '403';
+            if (isRlsError) {
+              pushErrorToast(
+                `Upload failed for "${file.name}": new row violates row-level security policy. Please execute supabase/migrations/20261129_fix_complaint_attachments_storage_rls.sql in Supabase SQL Editor.`
+              );
+            } else {
+              pushErrorToast(`Upload failed for "${file.name}": ${uploadError.message}`);
+            }
             return null;
           }
 

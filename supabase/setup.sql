@@ -722,57 +722,92 @@ ON CONFLICT (id) DO UPDATE SET
     file_size_limit = EXCLUDED.file_size_limit,
     allowed_mime_types = EXCLUDED.allowed_mime_types;
 
+DROP POLICY IF EXISTS "Complaint attachments upload policy" ON storage.objects;
 DROP POLICY IF EXISTS "Complaint attachments upload own folder" ON storage.objects;
-CREATE POLICY "Complaint attachments upload own folder"
+
+CREATE POLICY "Complaint attachments upload policy"
 ON storage.objects FOR INSERT
-TO authenticated
+TO authenticated, anon
 WITH CHECK (
     bucket_id = 'complaint-attachments'
-    AND (storage.foldername(name))[1] = auth.uid()::TEXT
+    AND (
+        (auth.uid() IS NOT NULL AND (storage.foldername(name))[1] = auth.uid()::TEXT)
+        OR (auth.uid() IS NOT NULL AND (storage.foldername(name))[1] = 'anonymous')
+        OR (auth.role() = 'anon' AND (storage.foldername(name))[1] = 'anonymous')
+        OR (auth.role() = 'anon' AND (storage.foldername(name))[1] IS NOT NULL)
+    )
 );
 
+DROP POLICY IF EXISTS "Complaint attachments read policy" ON storage.objects;
 DROP POLICY IF EXISTS "Complaint attachments read authorized stakeholders" ON storage.objects;
-CREATE POLICY "Complaint attachments read authorized stakeholders"
+
+CREATE POLICY "Complaint attachments read policy"
 ON storage.objects FOR SELECT
-TO authenticated
+TO authenticated, anon
 USING (
     bucket_id = 'complaint-attachments'
     AND (
-        (storage.foldername(name))[1] = auth.uid()::TEXT
+        (auth.uid() IS NOT NULL AND (storage.foldername(name))[1] = auth.uid()::TEXT)
+        OR (storage.foldername(name))[1] = 'anonymous'
+        OR EXISTS (
+            SELECT 1 FROM public.profiles p
+            WHERE p.id = auth.uid() AND p.role = 'super_admin'
+        )
         OR EXISTS (
             SELECT 1 FROM public.profiles p
             WHERE p.id = auth.uid()
-              AND (
-                  p.role = 'super_admin'
-                  OR (
-                      p.role IN ('office_head', 'dept_admin', 'staff', 'officer')
-                      AND EXISTS (
-                          SELECT 1
-                          FROM public.complaint_attachments ca
-                          JOIN public.complaints c ON c.id = ca.complaint_id
-                          WHERE (
-                              c.department_id = p.department_id
-                              OR c.forwarded_from_department_id = p.department_id
-                          )
-                            AND (
-                                ca.storage_path = storage.objects.name
-                                OR ca.file_url LIKE '%' || storage.objects.name || '%'
-                            )
-                      )
+              AND p.role IN ('office_head', 'dept_admin', 'staff', 'officer')
+              AND EXISTS (
+                  SELECT 1
+                  FROM public.complaint_attachments ca
+                  JOIN public.complaints c ON c.id = ca.complaint_id
+                  WHERE (
+                      c.department_id = p.department_id
+                      OR c.forwarded_from_department_id = p.department_id
                   )
+                    AND (
+                        ca.storage_path = storage.objects.name
+                        OR ca.file_url LIKE '%' || storage.objects.name || '%'
+                    )
               )
         )
     )
 );
 
-DROP POLICY IF EXISTS "Complaint attachments delete own folder" ON storage.objects;
-CREATE POLICY "Complaint attachments delete own folder"
-ON storage.objects FOR DELETE
-TO authenticated
+DROP POLICY IF EXISTS "Complaint attachments update policy" ON storage.objects;
+CREATE POLICY "Complaint attachments update policy"
+ON storage.objects FOR UPDATE
+TO authenticated, anon
 USING (
     bucket_id = 'complaint-attachments'
     AND (
-        (storage.foldername(name))[1] = auth.uid()::TEXT
+        (auth.uid() IS NOT NULL AND (storage.foldername(name))[1] = auth.uid()::TEXT)
+        OR (storage.foldername(name))[1] = 'anonymous'
+        OR EXISTS (
+            SELECT 1 FROM public.profiles p
+            WHERE p.id = auth.uid() AND p.role = 'super_admin'
+        )
+    )
+)
+WITH CHECK (
+    bucket_id = 'complaint-attachments'
+    AND (
+        (auth.uid() IS NOT NULL AND (storage.foldername(name))[1] = auth.uid()::TEXT)
+        OR (storage.foldername(name))[1] = 'anonymous'
+    )
+);
+
+DROP POLICY IF EXISTS "Complaint attachments delete policy" ON storage.objects;
+DROP POLICY IF EXISTS "Complaint attachments delete own folder" ON storage.objects;
+
+CREATE POLICY "Complaint attachments delete policy"
+ON storage.objects FOR DELETE
+TO authenticated, anon
+USING (
+    bucket_id = 'complaint-attachments'
+    AND (
+        (auth.uid() IS NOT NULL AND (storage.foldername(name))[1] = auth.uid()::TEXT)
+        OR (storage.foldername(name))[1] = 'anonymous'
         OR EXISTS (
             SELECT 1 FROM public.profiles p
             WHERE p.id = auth.uid() AND p.role = 'super_admin'

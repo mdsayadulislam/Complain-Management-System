@@ -571,6 +571,7 @@ export const BAUSTSubmitModal: React.FC<BAUSTSubmitModalProps> = ({
               files={files}
               onChange={setFiles}
               disabled={submitting}
+              isAnonymous={isAnonymous}
             />
 
             {/* Actions */}
