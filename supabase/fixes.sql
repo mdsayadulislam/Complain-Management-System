@@ -250,53 +250,60 @@ USING (
 
 -- ============================================================================
 -- 3. EVIDENCE FILE UPLOAD STORAGE BUCKET & RLS (BUG 4)
---    Max 20 MB per file, exact MIME types: JPG, PNG, PDF, MP4
+--    Max 20 MB per file, public read access, universal upload permissions
 -- ============================================================================
+GRANT USAGE ON SCHEMA storage TO postgres, anon, authenticated, service_role;
+GRANT ALL ON ALL TABLES IN SCHEMA storage TO postgres, anon, authenticated, service_role;
+
+ALTER TABLE storage.buckets ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow public read on buckets" ON storage.buckets;
+CREATE POLICY "Allow public read on buckets" ON storage.buckets FOR SELECT TO public USING (true);
+
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES (
   'complaint-attachments',
   'complaint-attachments',
   TRUE,
   20971520, -- 20MB in bytes (20 * 1024 * 1024)
-  ARRAY['image/jpeg', 'image/png', 'application/pdf', 'video/mp4']
+  NULL
 )
 ON CONFLICT (id) DO UPDATE SET
   public = TRUE,
   file_size_limit = 20971520,
-  allowed_mime_types = ARRAY['image/jpeg', 'image/png', 'application/pdf', 'video/mp4'];
+  allowed_mime_types = NULL;
 
 ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "Allow authenticated uploads to complaint-attachments" ON storage.objects;
-DROP POLICY IF EXISTS "Allow anon and auth uploads to complaint-attachments" ON storage.objects;
-DROP POLICY IF EXISTS "Allow public reads from complaint-attachments" ON storage.objects;
-DROP POLICY IF EXISTS "Allow users to delete own attachments" ON storage.objects;
-DROP POLICY IF EXISTS "Complaint attachments upload policy" ON storage.objects;
-DROP POLICY IF EXISTS "Complaint attachments upload own folder" ON storage.objects;
-DROP POLICY IF EXISTS "Complaint attachments read policy" ON storage.objects;
-DROP POLICY IF EXISTS "Complaint attachments read authorized stakeholders" ON storage.objects;
-DROP POLICY IF EXISTS "Complaint attachments update policy" ON storage.objects;
-DROP POLICY IF EXISTS "Complaint attachments delete policy" ON storage.objects;
-DROP POLICY IF EXISTS "Complaint attachments delete own folder" ON storage.objects;
-DROP POLICY IF EXISTS "Allow uploads update on complaint-attachments" ON storage.objects;
-DROP POLICY IF EXISTS "Allow users to delete attachments" ON storage.objects;
+DO $$
+DECLARE
+    pol RECORD;
+BEGIN
+    FOR pol IN
+        SELECT policyname
+        FROM pg_policies
+        WHERE schemaname = 'storage' AND tablename = 'objects'
+    LOOP
+        EXECUTE format('DROP POLICY IF EXISTS %I ON storage.objects;', pol.policyname);
+    END LOOP;
+END $$;
 
-CREATE POLICY "Allow anon and auth uploads to complaint-attachments"
+CREATE POLICY "complaint_attachments_insert_all"
 ON storage.objects FOR INSERT
 TO public
 WITH CHECK (bucket_id = 'complaint-attachments');
 
-CREATE POLICY "Allow public reads from complaint-attachments"
+CREATE POLICY "complaint_attachments_select_all"
 ON storage.objects FOR SELECT
 TO public
 USING (bucket_id = 'complaint-attachments');
 
-CREATE POLICY "Allow uploads update on complaint-attachments"
+CREATE POLICY "complaint_attachments_update_all"
 ON storage.objects FOR UPDATE
 TO public
-USING (bucket_id = 'complaint-attachments');
+USING (bucket_id = 'complaint-attachments')
+WITH CHECK (bucket_id = 'complaint-attachments');
 
-CREATE POLICY "Allow users to delete attachments"
+CREATE POLICY "complaint_attachments_delete_all"
 ON storage.objects FOR DELETE
 TO public
 USING (bucket_id = 'complaint-attachments');

@@ -163,7 +163,7 @@ export const FileUploadZone: React.FC<FileUploadZoneProps> = ({
               (uploadError as any).statusCode === '403';
             if (isRlsError) {
               pushErrorToast(
-                `Upload failed for "${file.name}": new row violates row-level security policy. Please execute supabase/migrations/20261129_fix_complaint_attachments_storage_rls.sql in Supabase SQL Editor.`
+                `Upload failed for "${file.name}": Storage permission blocked by RLS policy. Please execute the updated SQL in Supabase SQL Editor.`
               );
             } else {
               pushErrorToast(`Upload failed for "${file.name}": ${uploadError.message}`);
@@ -171,17 +171,17 @@ export const FileUploadZone: React.FC<FileUploadZoneProps> = ({
             return null;
           }
 
-          // Prefer signed URL for private complaint-attachments bucket (7 days), fallback to public URL
-          const { data: signedData, error: signedError } = await supabase.storage
+          // Use public URL for public bucket; fallback to signed URL if needed
+          const { data: pubData } = supabase.storage
             .from('complaint-attachments')
-            .createSignedUrl(storagePath, 60 * 60 * 24 * 7);
+            .getPublicUrl(storagePath);
 
-          let fileUrl = signedData?.signedUrl || '';
-          if (signedError || !fileUrl) {
-            const { data: pubData } = supabase.storage
+          let fileUrl = pubData?.publicUrl || '';
+          if (!fileUrl) {
+            const { data: signedData } = await supabase.storage
               .from('complaint-attachments')
-              .getPublicUrl(storagePath);
-            fileUrl = pubData.publicUrl;
+              .createSignedUrl(storagePath, 60 * 60 * 24 * 7);
+            fileUrl = signedData?.signedUrl || '';
           }
 
           return {
