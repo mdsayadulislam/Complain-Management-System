@@ -15,7 +15,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   user,
   loading,
   allowedRoles,
-  redirectTo = '/login',
+  redirectTo = '/',
   children,
 }) => {
   const location = useLocation();

@@ -45,7 +45,7 @@ export const BAUSTNavbar: React.FC<BAUSTNavbarProps> = ({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const currentLanguage = i18n.language || 'en';
-  const isLoginPage = location.pathname === '/login';
+  const isLoginPage = location.pathname === '/' || location.pathname === '/login';
 
   const toggleLanguage = () => {
     const nextLang = currentLanguage === 'en' ? 'bn' : 'en';

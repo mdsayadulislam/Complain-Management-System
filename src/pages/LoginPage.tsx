@@ -77,10 +77,18 @@ export const LoginPage: React.FC<LoginPageProps> = ({
               </button>
               <button
                 type="button"
-                onClick={() => navigate('/')}
+                onClick={() => {
+                  const isStaff =
+                    currentUser.role === 'office_head' ||
+                    currentUser.role === 'dept_admin' ||
+                    currentUser.role === 'staff' ||
+                    currentUser.role === 'officer' ||
+                    currentUser.role === 'super_admin';
+                  navigate(isStaff ? '/triage' : '/student');
+                }}
                 className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 text-white font-semibold rounded-lg text-xs shadow-xs transition-colors"
               >
-                <span>Dashboard</span>
+                <span>Go to Portal</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
             </div>
@@ -94,7 +102,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({
           departments={departments}
           onAuthSuccess={(profile) => {
             onAuthSuccess?.(profile);
-            navigate('/', { replace: true });
+            const isStaff =
+              profile.role === 'office_head' ||
+              profile.role === 'dept_admin' ||
+              profile.role === 'staff' ||
+              profile.role === 'officer' ||
+              profile.role === 'super_admin';
+            navigate(isStaff ? '/triage' : '/student', { replace: true });
           }}
         />
 

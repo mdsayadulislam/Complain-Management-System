@@ -376,6 +376,19 @@ export default function App() {
             </div>
           )}
           <Routes>
+            {/* Landing page: Root / and /login both render LoginPage */}
+            <Route
+              path="/"
+              element={
+                <LoginPage
+                  departments={departments}
+                  currentUser={currentUser}
+                  onLogout={handleLogout}
+                  onAuthSuccess={handleAuthSuccess}
+                />
+              }
+            />
+
             <Route
               path="/login"
               element={
@@ -400,7 +413,7 @@ export default function App() {
 
             <Route element={<ProtectedRoute user={currentUser} loading={loading} />}>
               <Route
-                path="/"
+                path="/dashboard"
                 element={
                   currentUser ? (
                     <HomeDashboard
@@ -412,7 +425,7 @@ export default function App() {
                       onCategoriesChanged={() => setCategoryRefreshKey((k) => k + 1)}
                     />
                   ) : (
-                    <Navigate to="/login" replace />
+                    <Navigate to="/" replace />
                   )
                 }
               />
@@ -428,7 +441,7 @@ export default function App() {
                       refreshTrigger={refreshTrigger}
                     />
                   ) : (
-                    <Navigate to="/login" replace />
+                    <Navigate to="/" replace />
                   )
                 }
               />
