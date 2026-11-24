@@ -254,124 +254,52 @@ USING (
 -- ============================================================================
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES (
-    'complaint-attachments',
-    'complaint-attachments',
-    FALSE,
-    20971520, -- 20 MB in bytes (20 * 1024 * 1024)
-    ARRAY['image/jpeg', 'image/png', 'application/pdf', 'video/mp4']
+  'complaint-attachments',
+  'complaint-attachments',
+  TRUE,
+  20971520, -- 20MB in bytes (20 * 1024 * 1024)
+  ARRAY['image/jpeg', 'image/png', 'application/pdf', 'video/mp4']
 )
 ON CONFLICT (id) DO UPDATE SET
-    public = EXCLUDED.public,
-    file_size_limit = EXCLUDED.file_size_limit,
-    allowed_mime_types = EXCLUDED.allowed_mime_types;
+  public = TRUE,
+  file_size_limit = 20971520,
+  allowed_mime_types = ARRAY['image/jpeg', 'image/png', 'application/pdf', 'video/mp4'];
 
--- 2. Storage Objects INSERT Policy (Supports Authenticated & Anonymous Submissions)
+ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Allow authenticated uploads to complaint-attachments" ON storage.objects;
+DROP POLICY IF EXISTS "Allow anon and auth uploads to complaint-attachments" ON storage.objects;
+DROP POLICY IF EXISTS "Allow public reads from complaint-attachments" ON storage.objects;
+DROP POLICY IF EXISTS "Allow users to delete own attachments" ON storage.objects;
 DROP POLICY IF EXISTS "Complaint attachments upload policy" ON storage.objects;
 DROP POLICY IF EXISTS "Complaint attachments upload own folder" ON storage.objects;
-
-CREATE POLICY "Complaint attachments upload policy"
-ON storage.objects FOR INSERT
-TO authenticated, anon
-WITH CHECK (
-    bucket_id = 'complaint-attachments'
-    AND (
-        (auth.uid() IS NOT NULL AND (storage.foldername(name))[1] = auth.uid()::TEXT)
-        OR (auth.uid() IS NOT NULL AND (storage.foldername(name))[1] = 'anonymous')
-        OR (auth.role() = 'anon' AND (storage.foldername(name))[1] = 'anonymous')
-        OR (auth.role() = 'anon' AND (storage.foldername(name))[1] IS NOT NULL)
-    )
-);
-
-ALTER TABLE public.complaint_attachments
-ADD COLUMN IF NOT EXISTS storage_path TEXT;
-
-UPDATE public.complaint_attachments
-SET storage_path = substring(
-    file_url
-    FROM '/storage/v1/object/(?:sign|public|authenticated)/complaint-attachments/([^?#]+)'
-)
-WHERE storage_path IS NULL
-  AND file_url ~ '/storage/v1/object/(?:sign|public|authenticated)/complaint-attachments/';
-
--- 3. Storage Objects SELECT Policy (File Owner, Anonymous Uploader, Super Admin, Dept Staff)
 DROP POLICY IF EXISTS "Complaint attachments read policy" ON storage.objects;
 DROP POLICY IF EXISTS "Complaint attachments read authorized stakeholders" ON storage.objects;
-
-CREATE POLICY "Complaint attachments read policy"
-ON storage.objects FOR SELECT
-TO authenticated, anon
-USING (
-    bucket_id = 'complaint-attachments'
-    AND (
-        (auth.uid() IS NOT NULL AND (storage.foldername(name))[1] = auth.uid()::TEXT)
-        OR (storage.foldername(name))[1] = 'anonymous'
-        OR EXISTS (
-            SELECT 1 FROM public.profiles p
-            WHERE p.id = auth.uid() AND p.role = 'super_admin'
-        )
-        OR EXISTS (
-            SELECT 1 FROM public.profiles p
-            WHERE p.id = auth.uid()
-              AND p.role IN ('office_head', 'dept_admin', 'staff', 'officer')
-              AND EXISTS (
-                  SELECT 1
-                  FROM public.complaint_attachments ca
-                  JOIN public.complaints c ON c.id = ca.complaint_id
-                  WHERE (
-                      c.department_id = p.department_id
-                      OR c.forwarded_from_department_id = p.department_id
-                  )
-                    AND (
-                        ca.storage_path = storage.objects.name
-                        OR ca.file_url LIKE '%' || storage.objects.name || '%'
-                    )
-              )
-        )
-    )
-);
-
--- 4. Storage Objects UPDATE Policy (For Overwrite / Upsert / Metadata)
 DROP POLICY IF EXISTS "Complaint attachments update policy" ON storage.objects;
-CREATE POLICY "Complaint attachments update policy"
-ON storage.objects FOR UPDATE
-TO authenticated, anon
-USING (
-    bucket_id = 'complaint-attachments'
-    AND (
-        (auth.uid() IS NOT NULL AND (storage.foldername(name))[1] = auth.uid()::TEXT)
-        OR (storage.foldername(name))[1] = 'anonymous'
-        OR EXISTS (
-            SELECT 1 FROM public.profiles p
-            WHERE p.id = auth.uid() AND p.role = 'super_admin'
-        )
-    )
-)
-WITH CHECK (
-    bucket_id = 'complaint-attachments'
-    AND (
-        (auth.uid() IS NOT NULL AND (storage.foldername(name))[1] = auth.uid()::TEXT)
-        OR (storage.foldername(name))[1] = 'anonymous'
-    )
-);
-
--- 5. Storage Objects DELETE Policy (Owner or Super Admin can Remove Uploaded Files)
 DROP POLICY IF EXISTS "Complaint attachments delete policy" ON storage.objects;
 DROP POLICY IF EXISTS "Complaint attachments delete own folder" ON storage.objects;
+DROP POLICY IF EXISTS "Allow uploads update on complaint-attachments" ON storage.objects;
+DROP POLICY IF EXISTS "Allow users to delete attachments" ON storage.objects;
 
-CREATE POLICY "Complaint attachments delete policy"
+CREATE POLICY "Allow anon and auth uploads to complaint-attachments"
+ON storage.objects FOR INSERT
+TO public
+WITH CHECK (bucket_id = 'complaint-attachments');
+
+CREATE POLICY "Allow public reads from complaint-attachments"
+ON storage.objects FOR SELECT
+TO public
+USING (bucket_id = 'complaint-attachments');
+
+CREATE POLICY "Allow uploads update on complaint-attachments"
+ON storage.objects FOR UPDATE
+TO public
+USING (bucket_id = 'complaint-attachments');
+
+CREATE POLICY "Allow users to delete attachments"
 ON storage.objects FOR DELETE
-TO authenticated, anon
-USING (
-    bucket_id = 'complaint-attachments'
-    AND (
-        (auth.uid() IS NOT NULL AND (storage.foldername(name))[1] = auth.uid()::TEXT)
-        OR (storage.foldername(name))[1] = 'anonymous'
-        OR EXISTS (
-            SELECT 1 FROM public.profiles p
-            WHERE p.id = auth.uid() AND p.role = 'super_admin'
-        )
-    )
-);
+TO public
+USING (bucket_id = 'complaint-attachments');
 
 -- 6. Ensure complaint_attachments table RLS allows owners and current/forwarding department staff to read/insert
 DROP POLICY IF EXISTS "Attachments readable by complaint stakeholders" ON public.complaint_attachments;
