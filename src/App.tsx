@@ -80,6 +80,13 @@ const HomeDashboard: React.FC<HomeDashboardProps> = ({
   );
 };
 
+const LogoutHandler: React.FC<{ onLogout: () => Promise<void> | void }> = ({ onLogout }) => {
+  useEffect(() => {
+    void onLogout();
+  }, [onLogout]);
+  return <Navigate to="/login" replace />;
+};
+
 export default function App() {
   const [departments, setDepartments] = useState<BAUSTDepartment[]>(BAUST_OFFICIAL_DEPARTMENTS);
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
@@ -372,15 +379,18 @@ export default function App() {
             <Route
               path="/login"
               element={
-                !loading && currentUser ? (
-                  <Navigate to="/" replace />
-                ) : (
-                  <LoginPage
-                    departments={departments}
-                    onAuthSuccess={handleAuthSuccess}
-                  />
-                )
+                <LoginPage
+                  departments={departments}
+                  currentUser={currentUser}
+                  onLogout={handleLogout}
+                  onAuthSuccess={handleAuthSuccess}
+                />
               }
+            />
+
+            <Route
+              path="/logout"
+              element={<LogoutHandler onLogout={handleLogout} />}
             />
 
             <Route
