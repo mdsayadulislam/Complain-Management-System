@@ -77,20 +77,22 @@ CREATE TABLE IF NOT EXISTS public.categories (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     department_id UUID NOT NULL REFERENCES public.departments(id) ON DELETE CASCADE,
     name VARCHAR(120) NOT NULL,
-    created_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+    created_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    is_active BOOLEAN NOT NULL DEFAULT true,
     CONSTRAINT categories_department_name_unique UNIQUE (department_id, name)
 );
 
 CREATE INDEX IF NOT EXISTS idx_categories_department_id ON public.categories(department_id);
+CREATE INDEX IF NOT EXISTS idx_categories_is_active ON public.categories(is_active);
 
-INSERT INTO public.categories (department_id, name)
-SELECT d.id, UNNEST(d.category_tags)
+INSERT INTO public.categories (department_id, name, is_active)
+SELECT d.id, UNNEST(d.category_tags), true
 FROM public.departments d
 ON CONFLICT (department_id, name) DO NOTHING;
 
-INSERT INTO public.categories (department_id, name)
-SELECT d.id, 'Others'
+INSERT INTO public.categories (department_id, name, is_active)
+SELECT d.id, 'Others', true
 FROM public.departments d
 ON CONFLICT (department_id, name) DO NOTHING;
 

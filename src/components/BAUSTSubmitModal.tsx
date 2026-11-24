@@ -121,8 +121,9 @@ export const BAUSTSubmitModal: React.FC<BAUSTSubmitModalProps> = ({
 
         const { data, error } = await supabase
           .from('categories')
-          .select('id, department_id, name, created_by, created_at')
+          .select('id, department_id, name, created_by, created_at, is_active')
           .eq('department_id', resolvedId)
+          .eq('is_active', true)
           .order('name', { ascending: true });
 
         if (cancelled) return;

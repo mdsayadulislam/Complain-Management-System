@@ -77,11 +77,23 @@ export const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
 
       const { data, error } = await supabase
         .from('categories')
-        .select('id, department_id, name, created_by, created_at')
+        .select('id, department_id, name, created_by, created_at, is_active')
         .eq('department_id', resolvedId)
+        .eq('is_active', true)
         .order('name', { ascending: true });
 
       if (error) {
+        if (
+          error.code === 'PGRST205' ||
+          error.message?.toLowerCase().includes('schema cache') ||
+          error.message?.toLowerCase().includes('does not exist')
+        ) {
+          setErrorMsg(
+            "Could not find the table 'public.categories' in the schema cache. Please execute supabase/migrations/20261130_create_departmental_categories.sql in Supabase SQL Editor."
+          );
+          setCategories([]);
+          return;
+        }
         throw error;
       }
       setCategories((data as DepartmentCategory[]) || []);
@@ -130,12 +142,21 @@ export const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
         .insert({
           department_id: resolvedDeptId,
           name: trimmed,
-          created_by: currentUser.id,
+          created_by: isValidUuid(currentUser.id) ? currentUser.id : null,
+          is_active: true,
         })
-        .select('id, department_id, name, created_by, created_at')
+        .select('id, department_id, name, created_by, created_at, is_active')
         .single();
 
       if (error) {
+        if (
+          error.code === 'PGRST205' ||
+          error.message?.toLowerCase().includes('schema cache')
+        ) {
+          throw new Error(
+            "Could not find the table 'public.categories' in the schema cache. Please execute supabase/migrations/20261130_create_departmental_categories.sql in Supabase SQL Editor."
+          );
+        }
         throw error;
       }
 

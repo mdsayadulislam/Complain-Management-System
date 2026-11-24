@@ -189,36 +189,41 @@ CREATE TABLE IF NOT EXISTS public.categories (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     department_id UUID NOT NULL REFERENCES public.departments(id) ON DELETE CASCADE,
     name VARCHAR(120) NOT NULL,
-    created_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+    created_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    is_active BOOLEAN NOT NULL DEFAULT true,
     CONSTRAINT categories_department_name_unique UNIQUE (department_id, name)
 );
 
 CREATE INDEX IF NOT EXISTS idx_categories_department_id ON public.categories(department_id);
+CREATE INDEX IF NOT EXISTS idx_categories_is_active ON public.categories(is_active);
 
 -- Backfill initial categories from existing departments.category_tags array
-INSERT INTO public.categories (department_id, name)
-SELECT d.id, UNNEST(d.category_tags)
+INSERT INTO public.categories (department_id, name, is_active)
+SELECT d.id, UNNEST(d.category_tags), true
 FROM public.departments d
 ON CONFLICT (department_id, name) DO NOTHING;
 
-INSERT INTO public.categories (department_id, name)
-SELECT d.id, 'Others'
+INSERT INTO public.categories (department_id, name, is_active)
+SELECT d.id, 'Others', true
 FROM public.departments d
 ON CONFLICT (department_id, name) DO NOTHING;
 
 ALTER TABLE public.categories ENABLE ROW LEVEL SECURITY;
 
--- Anyone authenticated can read categories for complaint submission dropdowns
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.categories TO authenticated;
+GRANT SELECT ON public.categories TO anon, public;
+
+DROP POLICY IF EXISTS "Categories are viewable by everyone" ON public.categories;
 DROP POLICY IF EXISTS "Categories are viewable by authenticated users" ON public.categories;
-CREATE POLICY "Categories are viewable by authenticated users"
+CREATE POLICY "Categories are viewable by everyone"
 ON public.categories FOR SELECT
-TO authenticated
+TO public
 USING (TRUE);
 
--- Office Heads / Dept Admins can insert categories ONLY for their own assigned department (Super Admin for all)
 DROP POLICY IF EXISTS "Office heads can add categories to their department" ON public.categories;
-CREATE POLICY "Office heads can add categories to their department"
+DROP POLICY IF EXISTS "Department staff and super admin can insert categories" ON public.categories;
+CREATE POLICY "Department staff and super admin can insert categories"
 ON public.categories FOR INSERT
 TO authenticated
 WITH CHECK (
@@ -227,14 +232,39 @@ WITH CHECK (
         WHERE p.id = auth.uid()
           AND (
               p.role = 'super_admin'
-              OR (p.role IN ('office_head', 'dept_admin') AND p.department_id = categories.department_id)
+              OR (p.role IN ('office_head', 'dept_admin', 'staff', 'officer') AND p.department_id = categories.department_id)
           )
     )
 );
 
--- Office Heads / Dept Admins can delete categories ONLY within their own department (Super Admin for all)
+DROP POLICY IF EXISTS "Department staff and super admin can update categories" ON public.categories;
+CREATE POLICY "Department staff and super admin can update categories"
+ON public.categories FOR UPDATE
+TO authenticated
+USING (
+    EXISTS (
+        SELECT 1 FROM public.profiles p
+        WHERE p.id = auth.uid()
+          AND (
+              p.role = 'super_admin'
+              OR (p.role IN ('office_head', 'dept_admin', 'staff', 'officer') AND p.department_id = categories.department_id)
+          )
+    )
+)
+WITH CHECK (
+    EXISTS (
+        SELECT 1 FROM public.profiles p
+        WHERE p.id = auth.uid()
+          AND (
+              p.role = 'super_admin'
+              OR (p.role IN ('office_head', 'dept_admin', 'staff', 'officer') AND p.department_id = categories.department_id)
+          )
+    )
+);
+
 DROP POLICY IF EXISTS "Office heads can delete categories from their department" ON public.categories;
-CREATE POLICY "Office heads can delete categories from their department"
+DROP POLICY IF EXISTS "Department staff and super admin can delete categories" ON public.categories;
+CREATE POLICY "Department staff and super admin can delete categories"
 ON public.categories FOR DELETE
 TO authenticated
 USING (
@@ -243,7 +273,7 @@ USING (
         WHERE p.id = auth.uid()
           AND (
               p.role = 'super_admin'
-              OR (p.role IN ('office_head', 'dept_admin') AND p.department_id = categories.department_id)
+              OR (p.role IN ('office_head', 'dept_admin', 'staff', 'officer') AND p.department_id = categories.department_id)
           )
     )
 );

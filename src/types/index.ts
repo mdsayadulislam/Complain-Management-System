@@ -26,6 +26,7 @@ export interface DepartmentCategory {
   name: string;
   created_by?: string | null;
   created_at?: string;
+  is_active?: boolean;
 }
 
 export interface UploadedAttachment {
